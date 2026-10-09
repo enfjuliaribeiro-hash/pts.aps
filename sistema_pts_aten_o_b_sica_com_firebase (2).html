@@ -575,13 +575,23 @@
     <!-- Script de Integração Firebase com Credenciais Fixas -->
     <script>
         // Configuração do Firebase (Insira suas chaves do Console Firebase aqui)
-        const firebaseConfig = {
-            apiKey: "SUA_API_KEY_AQUI",
-            authDomain: "seu-projeto.firebaseapp.com",
-            projectId: "seu-projeto",
-            storageBucket: "seu-projeto.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123:web:abc"
+        // Import the functions you need from the SDKs you need
+         import { initializeApp } from "firebase/app";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+       // Your web app's Firebase configuration
+       const firebaseConfig = {
+       apiKey: "AIzaSyCI7jyHaqESvrJeTwrwWETy-LjEZwvS4H8",
+       authDomain: "sistema-pts-aps.firebaseapp.com",
+       projectId: "sistema-pts-aps",
+       storageBucket: "sistema-pts-aps.firebasestorage.app",
+       messagingSenderId: "180282638201",
+       appId: "1:180282638201:web:e11fb2567602cfc8f579a8"
+       };
+
+     // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
         };
 
         const CREDENCIAL_USUARIO = 'Turma A';
@@ -641,25 +651,14 @@
                         sessionStorage.setItem('pts_logged_local', 'true');
                     })
                     .catch((err) => {
-                        console.warn("Modo offline/fallback ativado devido ao Firebase:", err.message);
-                        sessionStorage.setItem('pts_logged_local', 'true');
-                        usuarioAtual = { uid: 'turma_a_offline', email: FIREBASE_EMAIL_FICTICIO };
-                        mostrarApp();
-                        carregarDadosLocalStorage();
+                     console.error("Falha no login Firebase:", err);
+                     document.getElementById('login_error').classList.remove('hidden');
+                    document.getElementById('login_error_text').innerText =
+                    'Não foi possível autenticar. Verifique a conta e a configuração do Firebase.';
                     });
             } else {
                 document.getElementById('login_error').classList.remove('hidden');
                 document.getElementById('login_error_text').innerText = 'Usuário ou senha incorretos.';
-            }
-        }
-
-        function verificarLoginSessaoLocal() {
-            if(sessionStorage.getItem('pts_logged_local') === 'true') {
-                usuarioAtual = { uid: 'turma_a_offline', email: FIREBASE_EMAIL_FICTICIO };
-                mostrarApp();
-                carregarDadosLocalStorage();
-            } else {
-                mostrarLogin();
             }
         }
 
@@ -698,7 +697,7 @@
             db.collection('pacientes').where('userId', '==', usuarioAtual.uid).onSnapshot((snapshot) => {
                 pacientesDB = [];
                 snapshot.forEach((doc) => {
-                    pacientesDB.push({ idDoc: doc.id, ...doc.data() });
+                    pacientesDB.push({ ...doc.data(), idDoc: doc.id });
                 });
                 renderizarTabelaPacientes();
             }, () => carregarDadosLocalStorage());
