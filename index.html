@@ -591,45 +591,44 @@
        };
 
      // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        };
+          const CREDENCIAL_USUARIO = "Turma A";
+        const FIREBASE_EMAIL_FICTICIO = "turma.a@sistemapts.local";
 
-        const CREDENCIAL_USUARIO = 'Turma A';
-        const CREDENCIAL_SENHA = 'ptsturmaA2026';
-        const FIREBASE_EMAIL_FICTICIO = 'turma.a@sistemapts.local';
+    let app, auth, db;
+    let usuarioAtual = null;
+    let pacientesDB = [];
+    let territorioDB = {
+        ubs: "",
+        numEquipes: 0,
+        adscritos: 0,
+        equipesDet: []
+    };
+    let pacienteAtualId = null;
 
-        let app, auth, db;
-        let usuarioAtual = null;
-        let pacientesDB = [];
-        let territorioDB = { ubs: '', numEquipes: 0, adscritos: 0, equipesDet: [] };
-        let pacienteAtualId = null;
+    document.addEventListener("DOMContentLoaded", () => {
+        try {
+            app = firebase.apps.length
+                ? firebase.app()
+                : firebase.initializeApp(firebaseConfig);
 
-        document.addEventListener('DOMContentLoaded', () => {
-            try {
-                if(!firebase.apps.length) {
-                    app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    usuarioAtual = user;
+                    mostrarApp();
+                    carregarDadosDaNuvem();
                 } else {
-                    app = firebase.app();
+                    usuarioAtual = null;
+                    mostrarLogin();
                 }
-                auth = firebase.auth();
-                db = firebase.firestore();
-
-                auth.onAuthStateChanged((user) => {
-                    if (user) {
-                        usuarioAtual = user;
-                        mostrarApp();
-                        carregarDadosDaNuvem();
-                    } else {
-                        usuarioAtual = null;
-                        mostrarLogin();
-                    }
-                });
-            } catch(e) {
-                console.error("Erro ao inicializar Firebase:", e);
-                // Fallback para permitir navegação se as chaves do firebase ainda não estiverem preenchidas
-                verificarLoginSessaoLocal();
-            }
-        });
+            });
+        } catch (e) {
+            console.error("Erro ao inicializar Firebase:", e);
+            mostrarLogin();
+        }
+    });
 
         function realizarLoginSistema() {
             const userInput = document.getElementById('login_user').value.trim();
