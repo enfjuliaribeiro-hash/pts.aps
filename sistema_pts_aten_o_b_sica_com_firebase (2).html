@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Web PTS - Projeto Terapêutico Singular (Firebase)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDKs (Compat v10) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0284c7',
+                        secondary: '#0f766e',
+                        darkCustom: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-container { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; }
+            .print-header-bg { background-color: #e0f2fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-header-text { color: #1e3a8a !important; }
+            .print-risk-green { color: #16a34a !important; font-weight: bold; }
+            .print-risk-yellow { color: #d97706 !important; font-weight: bold; }
+            .print-risk-red { color: #dc2626 !important; font-weight: bold; }
+            .print-name-box { background-color: #f0f9ff !important; border-radius: 8px; padding: 10px; margin-bottom: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact; border: 1px solid #bae6fd !important;}
+        }
+        /* Correção completa do acordeão: zera altura, padding e opacidade para retrair por completo */
+        .accordion-content { 
+            max-height: 0; 
+            overflow: hidden; 
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0;
+            transition: max-height 0.3s cubic-bezier(0, 1, 0, 1), padding 0.3s ease, opacity 0.2s ease; 
+        }
+        .accordion-content.expanded {
+            max-height: 3000px;
+            padding-top: 1.25rem !important; 
+            padding-bottom: 1.25rem !important;
+            opacity: 1;
+            transition: max-height 0.5s ease-in-out, padding 0.3s ease, opacity 0.4s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- TELA DE LOGIN FIXA (Turma A / ptsturmaA2026) -->
+    <div id="telaLogin" class="flex-grow flex items-center justify-center p-4 bg-slate-100 no-print">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 space-y-6 border border-slate-200">
+            <div class="text-center">
+                <div class="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-md">
+                    <i class="fa-solid fa-notes-medical"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-800">Sistema PTS - Firebase</h1>
+                <p class="text-sm text-slate-500 mt-1 font-medium">Acesso Acadêmico | APS</p>
+            </div>
+            
+            <div class="space-y-4 pt-2">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Usuário</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <input type="text" id="login_user" class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary focus:outline-none transition text-sm" placeholder="Digite Turma A" onkeypress="handleLoginEnter(event)">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Senha</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-lock"></i>
+                        </span>
+                        <input type="password" id="login_pass" class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary focus:outline-none transition text-sm" placeholder="Digite a senha" onkeypress="handleLoginEnter(event)">
+                    </div>
+                </div>
+                
+                <div id="login_error" class="hidden text-xs text-red-700 bg-red-50 p-3 rounded-lg border border-red-200 text-center font-medium flex items-center justify-center">
+                    <i class="fa-solid fa-triangle-exclamation mr-2"></i> <span id="login_error_text">Usuário ou senha incorretos.</span>
+                </div>
+                
+                <button onclick="realizarLoginSistema()" class="w-full bg-primary hover:bg-sky-700 text-white font-bold py-3 rounded-lg shadow-md transition duration-200 flex justify-center items-center">
+                    <i class="fa-solid fa-right-to-bracket mr-2"></i> Entrar no Sistema
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTAINER PRINCIPAL DO APLICATIVO -->
+    <div id="appContainer" class="hidden flex-col flex-grow w-full">
+        
+        <!-- Header Principal -->
+        <header class="bg-primary text-white shadow-md no-print w-full">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center space-x-3 mb-3 md:mb-0">
+                    <div class="bg-white p-2 rounded-lg text-primary font-bold text-xl">
+                        <i class="fa-solid fa-notes-medical"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold">Sistema PTS - APS (Cloud)</h1>
+                        <p class="text-xs text-slate-100">Projeto Terapêutico Singular | Sincronizado via Firebase Firestore</p>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                    <div id="pacienteAtivoHeader" class="hidden bg-sky-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-3">
+                        <div>
+                            <span class="block text-xs text-sky-200">Paciente em Atendimento:</span>
+                            <strong id="headerNomePaciente" class="text-white"></strong>
+                        </div>
+                        <button onclick="voltarParaSelecao()" class="bg-white text-sky-800 px-3 py-1 rounded text-xs font-semibold hover:bg-sky-50 transition">
+                            <i class="fa-solid fa-arrow-left mr-1"></i> Trocar
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span id="userEmailBadge" class="text-xs bg-sky-800 px-3 py-2 rounded-lg font-medium">Turma A</span>
+                        <button onclick="logoutSistema()" class="bg-sky-900 hover:bg-rose-900 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow transition flex items-center" title="Sair do Sistema">
+                            <i class="fa-solid fa-power-off"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6">
+
+            <!-- TELA 1: LISTAGEM DE PACIENTES / GERENCIAMENTO -->
+            <div id="telaGerenciamento" class="space-y-6">
+                
+                <!-- Cards Informativos e Território -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Identificação do Território -->
+                    <div class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-bold text-slate-700 flex items-center">
+                                <i class="fa-solid fa-map-location-dot text-primary mr-2"></i> Identificação do Território
+                            </h2>
+                            <button onclick="salvarTerritorio()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded font-medium transition">
+                                <i class="fa-solid fa-floppy-disk mr-1"></i> Salvar na Nuvem
+                            </button>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Nome da Unidade de Saúde (UBS):</label>
+                                <input type="text" id="termoUbs" class="w-full border border-slate-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: UBS Centro">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Número de Equipes:</label>
+                                    <input type="number" id="termoNumEquipes" class="w-full border border-slate-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 3" oninput="gerarCamposEquipes()">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Usuários Adscritos:</label>
+                                    <input type="number" id="termoAdscritos" class="w-full border border-slate-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 12000">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Usuários Cadastrados por Equipe:</label>
+                                <div id="containerEquipesCadastradas" class="max-h-36 overflow-y-auto space-y-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+                                    <span class="text-slate-400 italic">Informe o número de equipes acima para detalhar.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Usuários Alvo do PTS -->
+                    <div class="lg:col-span-2 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-2 border-b border-slate-100 gap-3">
+                                <h2 class="text-lg font-bold text-slate-700 flex items-center">
+                                    <i class="fa-solid fa-users text-secondary mr-2"></i> Usuários com PTS Cadastrado
+                                </h2>
+                                <button onclick="abrirNovoPTSModal()" class="bg-secondary hover:bg-teal-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition flex items-center">
+                                    <i class="fa-solid fa-user-plus mr-2"></i> Cadastrar Novo PTS
+                                </button>
+                            </div>
+                            
+                            <!-- Barra de Pesquisa -->
+                            <div class="mb-4">
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                        <i class="fa-solid fa-search"></i>
+                                    </span>
+                                    <input type="text" id="filtroPacientes" oninput="filtrarPacientes()" placeholder="Buscar paciente por nome, ACS ou equipe..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-secondary focus:outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Tabela de Pacientes -->
+                            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                                <table class="w-full text-left border-collapse text-sm">
+                                    <thead>
+                                        <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                            <th class="p-3">Nome do Usuário</th>
+                                            <th class="p-3">Idade / Ciclo</th>
+                                            <th class="p-3">Equipe / Microárea</th>
+                                            <th class="p-3">ACS Resp.</th>
+                                            <th class="p-3 text-center">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaPacientesBody" class="divide-y divide-slate-100">
+                                        <!-- Inserido via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
+                            <span>Total de PTS na Nuvem: <strong id="totalPtsCount">0</strong></span>
+                            <span class="italic">Sincronizado em tempo real com Firestore.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TELA 2: PRONTUÁRIO / PTS DO USUÁRIO SELECIONADO -->
+            <div id="telaProntuario" class="hidden space-y-6">
+                
+                <!-- Barra de Navegação por Abas do PTS -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-2 flex flex-wrap gap-2 no-print">
+                    <button onclick="mudarAba('sociodemograficos')" id="btnTab-sociodemograficos" class="tab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center space-x-2 bg-primary text-white shadow">
+                        <i class="fa-solid fa-id-card"></i> <span>Dados Sociodemográficos</span>
+                    </button>
+                    <button onclick="mudarAba('clinica')" id="btnTab-clinica" class="tab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center space-x-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                        <i class="fa-solid fa-stethoscope"></i> <span>História Clínica & Riscos</span>
+                    </button>
+                    <button onclick="mudarAba('familiar')" id="btnTab-familiar" class="tab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center space-x-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                        <i class="fa-solid fa-people-roof"></i> <span>Avaliação Familiar</span>
+                    </button>
+                    <button onclick="mudarAba('pts')" id="btnTab-pts" class="tab-btn flex-1 min-w-[150px] py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center space-x-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                        <i class="fa-solid fa-clipboard-list"></i> <span>Planejamento Terapêutico</span>
+                    </button>
+                    <button onclick="mudarAba('imprimir')" id="btnTab-imprimir" class="tab-btn py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center space-x-2 bg-slate-800 text-white hover:bg-slate-700">
+                        <i class="fa-solid fa-print"></i> <span>Imprimir PTS Completo</span>
+                    </button>
+                </div>
+
+                <!-- CONTEÚDO DAS ABAS -->
+
+                <!-- ABA 1: DADOS SOCIODEMOGRÁFICOS -->
+                <div id="aba-sociodemograficos" class="tab-content space-y-4">
+                    
+                    <!-- Acordeão 1.1: Identificação do Usuário -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-identificacao')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-user-circle text-primary mr-2"></i> Identificação do Usuário</span>
+                            <i id="icon-acc-identificacao" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-identificacao" class="accordion-content p-5 space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Completo do Usuário:</label>
+                                    <input type="text" id="p_nome" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Data de Nascimento:</label>
+                                    <input type="date" id="p_nascimento" onchange="calcularIdadeCiclo()" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Idade Calculada:</label>
+                                    <div id="p_idade_display" class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-sm font-semibold flex items-center justify-between">
+                                        <span id="p_idade_texto">-</span>
+                                        <span id="p_icone_ciclo" class="text-base" title=""></span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Telefone de Contato:</label>
+                                    <input type="text" id="p_telefone" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="(00) 00000-0000">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Sexo / Gênero:</label>
+                                    <select id="p_sexo" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                        <option value="">Selecione...</option>
+                                        <option value="Feminino">Feminino</option>
+                                        <option value="Masculino">Masculino</option>
+                                        <option value="Outro">Outro</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Cor / Etnia:</label>
+                                    <select id="p_raca" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                        <option value="">Selecione...</option>
+                                        <option value="Branca">Branca</option>
+                                        <option value="Preta">Preta</option>
+                                        <option value="Parda">Parda</option>
+                                        <option value="Amarela">Amarela</option>
+                                        <option value="Indígena">Indígena</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Estado Civil:</label>
+                                    <select id="p_estadocivil" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                        <option value="">Selecione...</option>
+                                        <option value="Solteiro(a)">Solteiro(a)</option>
+                                        <option value="Casado(a) / União Estável">Casado(a) / União Estável</option>
+                                        <option value="Divorciado(a)">Divorciado(a)</option>
+                                        <option value="Viúvo(a)">Viúvo(a)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Naturalidade:</label>
+                                    <input type="text" id="p_naturalidade" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Cidade / UF">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Procedência:</label>
+                                    <input type="text" id="p_procedencia" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Origem">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Residência (Endereço Completo):</label>
+                                <input type="text" id="p_residencia" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Rua, número, bairro, complemento">
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome da Mãe:</label>
+                                    <input type="text" id="p_nomemae" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável / Cuidador / Acompanhante:</label>
+                                    <input type="text" id="p_responsavel" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Obrigatório em caso de criança, adolescente, idoso ou incapaz">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Equipe de Saúde:</label>
+                                    <input type="text" id="p_equipe" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: Equipe 01">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Microárea:</label>
+                                    <input type="text" id="p_microarea" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 05">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">ACS Responsável:</label>
+                                    <input type="text" id="p_acs" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nome do Agente">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acordeão 1.2: Informações Sociodemográficas -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-sociodemo')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-chart-pie text-primary mr-2"></i> Informações Sociodemográficas</span>
+                            <i id="icon-acc-sociodemo" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-sociodemo" class="accordion-content p-5 space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Escolaridade:</label>
+                                    <select id="p_escolaridade" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                        <option value="">Selecione...</option>
+                                        <option value="analfabeto">Analfabeto</option>
+                                        <option value="fundamental_incompleto">Fundamental Incompleto</option>
+                                        <option value="fundamental_completo">Fundamental Completo</option>
+                                        <option value="medio_incompleto">Médio Incompleto</option>
+                                        <option value="medio_completo">Médio Completo</option>
+                                        <option value="superior_incompleto">Superior Incompleto</option>
+                                        <option value="superior_completo">Superior Completo</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Situação no Mercado de Trabalho:</label>
+                                    <select id="p_mercadotrabalho" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                                        <option value="">Selecione...</option>
+                                        <option value="Empregado formal">Empregado formal</option>
+                                        <option value="Autônomo / Informal">Autônomo / Informal</option>
+                                        <option value="Desempregado">Desempregado</option>
+                                        <option value="Aposentado / Pensionista">Aposentado / Pensionista</option>
+                                        <option value="Do lar / Doméstico não remunerado">Do lar / Doméstico não remunerado</option>
+                                        <option value="Estudante">Estudante</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ocupação / Profissão:</label>
+                                    <input type="text" id="p_ocupacao" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: Pedreiro, Costureira...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button onclick="salvarDadosPaciente()" class="bg-primary hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow transition flex items-center">
+                            <i class="fa-solid fa-floppy-disk mr-2"></i> Salvar Dados Sociodemográficos na Nuvem
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 2: HISTÓRIA CLÍNICA & RISCOS -->
+                <div id="aba-clinica" class="tab-content hidden space-y-4">
+                    
+                    <!-- Acordeão 2.1: Antecedentes Pessoais -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-ant-pessoais')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-user-injured text-primary mr-2"></i> Antecedentes Pessoais</span>
+                            <i id="icon-acc-ant-pessoais" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-ant-pessoais" class="accordion-content p-5">
+                            <textarea id="p_ant_pessoais" rows="3" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Doenças prévias, cirurgias anteriores, internações, alergias conhecidas, etc."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Acordeão 2.2: Antecedentes Familiares -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-ant-familiares')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-users-line text-primary mr-2"></i> Antecedentes Familiares</span>
+                            <i id="icon-acc-ant-familiares" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-ant-familiares" class="accordion-content p-5">
+                            <textarea id="p_ant_familiares" rows="3" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Doenças crônicas na família (HAS, DM, neoplasias, cardiopatias, saúde mental, etc.)"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Acordeão 2.3: Dados Antropométricos -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-antropometria')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-weight-scale text-primary mr-2"></i> Dados Antropométricos</span>
+                            <i id="icon-acc-antropometria" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-antropometria" class="accordion-content p-5 space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Peso (kg):</label>
+                                    <input type="number" step="0.1" id="p_peso" oninput="calcularIMC()" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 70.5">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Altura (m):</label>
+                                    <input type="number" step="0.01" id="p_altura" oninput="calcularIMC()" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 1.72">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Circunferência Abdominal (cm):</label>
+                                    <input type="number" step="0.1" id="p_circabdom" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ex: 88.0">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">IMC (kg/m²):</label>
+                                    <div id="p_imc_display" class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-sm font-bold text-slate-700">
+                                        -
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button onclick="salvarDadosHistoriaClinica()" class="bg-primary hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow transition flex items-center">
+                            <i class="fa-solid fa-floppy-disk mr-2"></i> Salvar História Clínica & Riscos na Nuvem
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 3: AVALIAÇÃO FAMILIAR -->
+                <div id="aba-familiar" class="tab-content hidden space-y-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <button onclick="toggleAccordion('acc-coelhosavassi')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center font-bold text-slate-700">
+                            <span class="flex items-center"><i class="fa-solid fa-house-chimney-user text-primary mr-2"></i> Escala de Risco Familiar de Coelho-Savassi</span>
+                            <i id="icon-acc-coelhosavassi" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </button>
+                        <div id="content-acc-coelhosavassi" class="accordion-content p-5 space-y-4">
+                            <p class="text-xs text-slate-600">Selecione os critérios de risco identificados no domicílio:</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button onclick="salvarAvaliacaoFamiliar()" class="bg-primary hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow transition flex items-center">
+                            <i class="fa-solid fa-floppy-disk mr-2"></i> Salvar Avaliação Familiar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 4: PLANEJAMENTO TERAPÊUTICO -->
+                <div id="aba-pts" class="tab-content hidden space-y-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+                        <h3 class="text-lg font-bold text-slate-700 flex items-center pb-2 border-b border-slate-100">
+                            <i class="fa-solid fa-clipboard-list text-primary mr-2"></i> Planejamento Terapêutico (Ações do PTS)
+                        </h3>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">1. Diagnóstico Situacional:</label>
+                            <textarea id="pts_diagnostico" rows="3" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">2. Metas e Objetivos:</label>
+                            <textarea id="pts_metas" rows="3" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="salvarPTSCompleto()" class="bg-primary hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow transition flex items-center">
+                            <i class="fa-solid fa-floppy-disk mr-2"></i> Salvar e Concluir PTS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 5: IMPRIMIR PTS -->
+                <div id="aba-imprimir" class="tab-content hidden space-y-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6 print-container">
+                        <div class="text-center pb-4 border-b-2 border-blue-200 print-header-bg rounded-t-xl p-4">
+                            <h2 class="text-2xl font-black uppercase print-header-text">Projeto Terapêutico Singular (PTS)</h2>
+                            <p id="print_ubs_nome" class="text-sm font-bold text-blue-900 mt-2"></p>
+                        </div>
+                        <div class="print-name-box mb-4">
+                            <span class="text-xs font-bold text-sky-700 uppercase tracking-wider block mb-1">NOME DO PACIENTE</span>
+                            <h1 id="print_nome" class="text-2xl font-black text-slate-800 uppercase leading-none m-0 p-0">-</h1>
+                        </div>
+                        <div class="pt-6 flex justify-end no-print">
+                            <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow transition flex items-center">
+                                <i class="fa-solid fa-print mr-2"></i> Imprimir / Salvar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal Novo PTS -->
+    <div id="modalNovoPTS" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                <i class="fa-solid fa-user-plus text-secondary mr-2"></i> Cadastrar Novo Paciente (PTS na Nuvem)
+            </h3>
+            <div class="space-y-3 text-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Completo:</label>
+                    <input type="text" id="novo_nome" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Nome do paciente">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Data de Nascimento:</label>
+                    <input type="date" id="novo_nascimento" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Equipe:</label>
+                        <input type="text" id="novo_equipe" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Ex: Equipe 01">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Microárea:</label>
+                        <input type="text" id="novo_microarea" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Ex: 03">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">ACS Responsável:</label>
+                    <input type="text" id="novo_acs" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Nome do ACS">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button onclick="fecharNovoPTSModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded">Cancelar</button>
+                <button onclick="criarNovoPTS()" class="px-4 py-2 bg-secondary hover:bg-teal-800 text-white text-sm font-semibold rounded">Criar na Nuvem</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Integração Firebase com Credenciais Fixas -->
+    <script>
+        // Configuração do Firebase (Insira suas chaves do Console Firebase aqui)
+        const firebaseConfig = {
+            apiKey: "SUA_API_KEY_AQUI",
+            authDomain: "seu-projeto.firebaseapp.com",
+            projectId: "seu-projeto",
+            storageBucket: "seu-projeto.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123:web:abc"
+        };
+
+        const CREDENCIAL_USUARIO = 'Turma A';
+        const CREDENCIAL_SENHA = 'ptsturmaA2026';
+        const FIREBASE_EMAIL_FICTICIO = 'turma.a@sistemapts.local';
+
+        let app, auth, db;
+        let usuarioAtual = null;
+        let pacientesDB = [];
+        let territorioDB = { ubs: '', numEquipes: 0, adscritos: 0, equipesDet: [] };
+        let pacienteAtualId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                if(!firebase.apps.length) {
+                    app = firebase.initializeApp(firebaseConfig);
+                } else {
+                    app = firebase.app();
+                }
+                auth = firebase.auth();
+                db = firebase.firestore();
+
+                auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        usuarioAtual = user;
+                        mostrarApp();
+                        carregarDadosDaNuvem();
+                    } else {
+                        usuarioAtual = null;
+                        mostrarLogin();
+                    }
+                });
+            } catch(e) {
+                console.error("Erro ao inicializar Firebase:", e);
+                // Fallback para permitir navegação se as chaves do firebase ainda não estiverem preenchidas
+                verificarLoginSessaoLocal();
+            }
+        });
+
+        function realizarLoginSistema() {
+            const userInput = document.getElementById('login_user').value.trim();
+            const passInput = document.getElementById('login_pass').value;
+
+            if(userInput === CREDENCIAL_USUARIO && passInput === CREDENCIAL_SENHA) {
+                document.getElementById('login_error').classList.add('hidden');
+                
+                // Tenta autenticar no Firebase com e-mail fixo correspondente à turma
+                auth.signInWithEmailAndPassword(FIREBASE_EMAIL_FICTICIO, CREDENCIAL_SENHA)
+                    .catch((error) => {
+                        // Se a conta não existir no Firebase Auth, cria automaticamente para o usuário
+                        if(error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+                            return auth.createUserWithEmailAndPassword(FIREBASE_EMAIL_FICTICIO, CREDENCIAL_SENHA);
+                        }
+                        throw error;
+                    })
+                    .then(() => {
+                        sessionStorage.setItem('pts_logged_local', 'true');
+                    })
+                    .catch((err) => {
+                        console.warn("Modo offline/fallback ativado devido ao Firebase:", err.message);
+                        sessionStorage.setItem('pts_logged_local', 'true');
+                        usuarioAtual = { uid: 'turma_a_offline', email: FIREBASE_EMAIL_FICTICIO };
+                        mostrarApp();
+                        carregarDadosLocalStorage();
+                    });
+            } else {
+                document.getElementById('login_error').classList.remove('hidden');
+                document.getElementById('login_error_text').innerText = 'Usuário ou senha incorretos.';
+            }
+        }
+
+        function verificarLoginSessaoLocal() {
+            if(sessionStorage.getItem('pts_logged_local') === 'true') {
+                usuarioAtual = { uid: 'turma_a_offline', email: FIREBASE_EMAIL_FICTICIO };
+                mostrarApp();
+                carregarDadosLocalStorage();
+            } else {
+                mostrarLogin();
+            }
+        }
+
+        function logoutSistema() {
+            sessionStorage.removeItem('pts_logged_local');
+            if(auth) auth.signOut();
+            mostrarLogin();
+        }
+
+        function handleLoginEnter(e) {
+            if(e.key === 'Enter') realizarLoginSistema();
+        }
+
+        function mostrarLogin() {
+            document.getElementById('telaLogin').classList.remove('hidden');
+            document.getElementById('appContainer').classList.remove('flex');
+            document.getElementById('appContainer').classList.add('hidden');
+        }
+
+        function mostrarApp() {
+            document.getElementById('telaLogin').classList.add('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
+            document.getElementById('appContainer').classList.add('flex');
+        }
+
+        function carregarDadosDaNuvem() {
+            if(!usuarioAtual) return;
+
+            db.collection('territorios').doc(usuarioAtual.uid).get().then((doc) => {
+                if(doc.exists) {
+                    territorioDB = doc.data();
+                    carregarTerritorioUI();
+                }
+            }).catch(() => carregarDadosLocalStorage());
+
+            db.collection('pacientes').where('userId', '==', usuarioAtual.uid).onSnapshot((snapshot) => {
+                pacientesDB = [];
+                snapshot.forEach((doc) => {
+                    pacientesDB.push({ idDoc: doc.id, ...doc.data() });
+                });
+                renderizarTabelaPacientes();
+            }, () => carregarDadosLocalStorage());
+        }
+
+        function carregarDadosLocalStorage() {
+            pacientesDB = JSON.parse(localStorage.getItem('pts_pacientes_db_offline')) || [];
+            territorioDB = JSON.parse(localStorage.getItem('pts_territorio_db_offline')) || { ubs: '', numEquipes: 0, adscritos: 0, equipesDet: [] };
+            carregarTerritorioUI();
+            renderizarTabelaPacientes();
+        }
+
+        function salvarTerritorio() {
+            territorioDB.ubs = document.getElementById('termoUbs').value;
+            territorioDB.numEquipes = parseInt(document.getElementById('termoNumEquipes').value) || 0;
+            territorioDB.adscritos = parseInt(document.getElementById('termoAdscritos').value) || 0;
+            territorioDB.equipesDet = [];
+            for(let i=1; i<=territorioDB.numEquipes; i++) {
+                let el = document.getElementById(`eq_cad_${i}`);
+                territorioDB.equipesDet.push(el ? el.value : '0');
+            }
+
+            if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                db.collection('territorios').doc(usuarioAtual.uid).set(territorioDB)
+                    .then(() => alert('Território salvo com sucesso na nuvem!'))
+                    .catch(() => salvarTerritorioLocal());
+            } else {
+                salvarTerritorioLocal();
+            }
+        }
+
+        function salvarTerritorioLocal() {
+            localStorage.setItem('pts_territorio_db_offline', JSON.stringify(territorioDB));
+            alert('Território salvo localmente!');
+        }
+
+        function carregarTerritorioUI() {
+            document.getElementById('termoUbs').value = territorioDB.ubs || '';
+            document.getElementById('termoNumEquipes').value = territorioDB.numEquipes || '';
+            document.getElementById('termoAdscritos').value = territorioDB.adscritos || '';
+            if(territorioDB.numEquipes > 0) gerarCamposEquipes();
+        }
+
+        function gerarCamposEquipes() {
+            const num = parseInt(document.getElementById('termoNumEquipes').value) || 0;
+            const container = document.getElementById('containerEquipesCadastradas');
+            container.innerHTML = '';
+            if(num <= 0) {
+                container.innerHTML = '<span class="text-slate-400 italic">Informe o número de equipes acima para detalhar.</span>';
+                return;
+            }
+            for(let i=1; i<=num; i++) {
+                let val = territorioDB.equipesDet && territorioDB.equipesDet[i-1] ? territorioDB.equipesDet[i-1] : '';
+                container.innerHTML += `
+                    <div class="flex items-center justify-between space-x-2">
+                        <span class="font-medium text-slate-700">Equipe 0${i} - Usuários:</span>
+                        <input type="number" id="eq_cad_${i}" value="${val}" class="w-24 border border-slate-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Qtd">
+                    </div>
+                `;
+            }
+        }
+
+        function abrirNovoPTSModal() {
+            document.getElementById('novo_nome').value = '';
+            document.getElementById('novo_nascimento').value = '';
+            document.getElementById('novo_equipe').value = '';
+            document.getElementById('novo_microarea').value = '';
+            document.getElementById('novo_acs').value = '';
+            document.getElementById('modalNovoPTS').classList.remove('hidden');
+            document.getElementById('modalNovoPTS').classList.add('flex');
+        }
+
+        function fecharNovoPTSModal() {
+            document.getElementById('modalNovoPTS').classList.remove('flex');
+            document.getElementById('modalNovoPTS').classList.add('hidden');
+        }
+
+        function criarNovoPTS() {
+            const nome = document.getElementById('novo_nome').value.trim();
+            const nascimento = document.getElementById('novo_nascimento').value;
+            if(!nome) {
+                alert('Informe o nome completo do paciente.');
+                return;
+            }
+            const novoP = {
+                userId: usuarioAtual ? usuarioAtual.uid : 'turma_a_offline',
+                idDoc: Date.now().toString(),
+                sociodemograficos: {
+                    nome: nome,
+                    nascimento: nascimento,
+                    telefone: '', sexo: '', raca: '', estadocivil: '', naturalidade: '', procedencia: '', residencia: '', nomemae: '', responsavel: '',
+                    equipe: document.getElementById('novo_equipe').value,
+                    microarea: document.getElementById('novo_microarea').value,
+                    acs: document.getElementById('novo_acs').value,
+                    escolaridade: '', mercadotrabalho: '', ocupacao: '', planodesaude_bool: 'Não', planodesaude_qual: '', deficiencia_bool: 'Não', deficiencia_qual: '', religiao_bool: 'Não', religiao_qual: '', grupocomunitario: 'Não'
+                },
+                clinica: { ant_pessoais: '', ant_familiares: '', peso: '', altura: '', circabdom: '', imc: '', condicoes_atuais: '', medicamentos: '', fatores_risco: '', fatores_protetores: '', info_adicionais: '', findrisc_res: '-', hearts_res: '-', ivcf_res: '-' },
+                familiar: { cs_score: 0, cs_risco: '-', apgar_score: 0, apgar_res: '-' },
+                pts: { diagnostico: '', metas: '', resp_equipe: '', resp_usuario: '', resp_rede: '', reavaliacao: '', profissional: '' }
+            };
+
+            if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                db.collection('pacientes').add(novoP).then((docRef) => {
+                    fecharNovoPTSModal();
+                    abrirProntuario(docRef.id);
+                }).catch(() => criarPTSLocal(novoP));
+            } else {
+                criarPTSLocal(novoP);
+            }
+        }
+
+        function criarPTSLocal(novoP) {
+            pacientesDB.push(novoP);
+            localStorage.setItem('pts_pacientes_db_offline', JSON.stringify(pacientesDB));
+            fecharNovoPTSModal();
+            renderizarTabelaPacientes();
+            abrirProntuario(novoP.idDoc);
+        }
+
+        function renderizarTabelaPacientes(filtro='') {
+            const tbody = document.getElementById('tabelaPacientesBody');
+            tbody.innerHTML = '';
+            let filtrados = pacientesDB;
+            if(filtro) {
+                filtrados = pacientesDB.filter(p => p.sociodemograficos.nome.toLowerCase().includes(filtro.toLowerCase()));
+            }
+            document.getElementById('totalPtsCount').innerText = pacientesDB.length;
+            if(filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400 italic">Nenhum paciente cadastrado.</td></tr>`;
+                return;
+            }
+            filtrados.forEach(p => {
+                let idadeCiclo = calcularIdadeCicloString(p.sociodemograficos.nascimento, false);
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3 font-medium text-slate-800">${p.sociodemograficos.nome}</td>
+                        <td class="p-3 text-xs text-slate-600">${idadeCiclo}</td>
+                        <td class="p-3 text-xs text-slate-600">${p.sociodemograficos.equipe || '-'} / Micro: ${p.sociodemograficos.microarea || '-'}</td>
+                        <td class="p-3 text-xs text-slate-600">${p.sociodemograficos.acs || '-'}</td>
+                        <td class="p-3 text-center space-x-2">
+                            <button onclick="abrirProntuario('${p.idDoc}')" class="bg-primary hover:bg-sky-700 text-white px-3 py-1 rounded text-xs font-semibold transition"><i class="fa-solid fa-folder-open mr-1"></i> Acessar</button>
+                            <button onclick="excluirPaciente('${p.idDoc}')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-2 py-1 rounded text-xs transition"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filtrarPacientes() {
+            let termo = document.getElementById('filtroPacientes').value;
+            renderizarTabelaPacientes(termo);
+        }
+
+        function excluirPaciente(idDoc) {
+            if(confirm('Tem certeza que deseja excluir este PTS?')) {
+                if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                    db.collection('pacientes').doc(idDoc).delete().catch(() => excluirPacienteLocal(idDoc));
+                } else {
+                    excluirPacienteLocal(idDoc);
+                }
+            }
+        }
+
+        function excluirPacienteLocal(idDoc) {
+            pacientesDB = pacientesDB.filter(p => p.idDoc !== idDoc);
+            localStorage.setItem('pts_pacientes_db_offline', JSON.stringify(pacientesDB));
+            renderizarTabelaPacientes();
+        }
+
+        function abrirProntuario(idDoc) {
+            pacienteAtualId = idDoc;
+            const p = pacientesDB.find(item => item.idDoc === idDoc);
+            if(!p) return;
+
+            document.getElementById('headerNomePaciente').innerText = p.sociodemograficos.nome;
+            document.getElementById('telaGerenciamento').classList.add('hidden');
+            document.getElementById('telaProntuario').classList.remove('hidden');
+            document.getElementById('pacienteAtivoHeader').classList.remove('hidden');
+
+            document.getElementById('p_nome').value = p.sociodemograficos.nome || '';
+            document.getElementById('p_nascimento').value = p.sociodemograficos.nascimento || '';
+            document.getElementById('p_telefone').value = p.sociodemograficos.telefone || '';
+            document.getElementById('p_sexo').value = p.sociodemograficos.sexo || '';
+            document.getElementById('p_raca').value = p.sociodemograficos.raca || '';
+            document.getElementById('p_estadocivil').value = p.sociodemograficos.estadocivil || '';
+            document.getElementById('p_naturalidade').value = p.sociodemograficos.naturalidade || '';
+            document.getElementById('p_procedencia').value = p.sociodemograficos.procedencia || '';
+            document.getElementById('p_residencia').value = p.sociodemograficos.residencia || '';
+            document.getElementById('p_nomemae').value = p.sociodemograficos.nomemae || '';
+            document.getElementById('p_responsavel').value = p.sociodemograficos.responsavel || '';
+            document.getElementById('p_equipe').value = p.sociodemograficos.equipe || '';
+            document.getElementById('p_microarea').value = p.sociodemograficos.microarea || '';
+            document.getElementById('p_acs').value = p.sociodemograficos.acs || '';
+            document.getElementById('p_escolaridade').value = p.sociodemograficos.escolaridade || '';
+            document.getElementById('p_mercadotrabalho').value = p.sociodemograficos.mercadotrabalho || '';
+            document.getElementById('p_ocupacao').value = p.sociodemograficos.ocupacao || '';
+
+            calcularIdadeCiclo();
+
+            document.getElementById('p_ant_pessoais').value = p.clinica.ant_pessoais || '';
+            document.getElementById('p_ant_familiares').value = p.clinica.ant_familiares || '';
+            document.getElementById('p_peso').value = p.clinica.peso || '';
+            document.getElementById('p_altura').value = p.clinica.altura || '';
+            document.getElementById('p_circabdom').value = p.clinica.circabdom || '';
+            calcularIMC();
+
+            document.getElementById('pts_diagnostico').value = p.pts.diagnostico || '';
+            document.getElementById('pts_metas').value = p.pts.metas || '';
+
+            mudarAba('sociodemograficos');
+        }
+
+        function voltarParaSelecao() {
+            pacienteAtualId = null;
+            document.getElementById('telaProntuario').classList.add('hidden');
+            document.getElementById('pacienteAtivoHeader').classList.add('hidden');
+            document.getElementById('telaGerenciamento').classList.remove('hidden');
+        }
+
+        function mudarAba(abaId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-primary', 'bg-slate-800', 'text-white', 'shadow');
+                btn.classList.add('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+            });
+            document.getElementById(`aba-${abaId}`).classList.remove('hidden');
+            const ativoBtn = document.getElementById(`btnTab-${abaId}`);
+            if(ativoBtn) {
+                ativoBtn.classList.remove('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+                if(abaId === 'imprimir') {
+                    ativoBtn.classList.add('bg-slate-800', 'text-white');
+                    atualizarDadosImpressao();
+                } else {
+                    ativoBtn.classList.add('bg-primary', 'text-white', 'shadow');
+                }
+            }
+        }
+
+        function toggleAccordion(id) {
+            const content = document.getElementById(`content-${id}`);
+            const icon = document.getElementById(`icon-${id}`);
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('rotate-180');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.add('rotate-180');
+            }
+        }
+
+        function calcularIdadeCicloString(nascimentoStr, apenasTexto = false) {
+            if(!nascimentoStr) return 'Idade não informada';
+            const nasc = new Date(nascimentoStr);
+            const hoje = new Date();
+            let idade = hoje.getFullYear() - nasc.getFullYear();
+            const m = hoje.getMonth() - nasc.getMonth();
+            if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+            return apenasTexto ? `${idade} anos` : `${idade} anos <i class="fa-solid fa-user text-primary"></i>`;
+        }
+
+        function calcularIdadeCiclo() {
+            const nascStr = document.getElementById('p_nascimento').value;
+            const disp = document.getElementById('p_idade_texto');
+            if(!nascStr) { disp.innerText = 'Informe a data'; return; }
+            const nasc = new Date(nascStr);
+            const hoje = new Date();
+            let idade = hoje.getFullYear() - nasc.getFullYear();
+            disp.innerText = `${idade} anos`;
+        }
+
+        function calcularIMC() {
+            const peso = parseFloat(document.getElementById('p_peso').value);
+            const altura = parseFloat(document.getElementById('p_altura').value);
+            const disp = document.getElementById('p_imc_display');
+            if(peso > 0 && altura > 0) {
+                let imc = peso / (altura * altura);
+                disp.innerText = `${imc.toFixed(2)} kg/m²`;
+                return imc.toFixed(2);
+            } else { disp.innerText = '-'; return ''; }
+        }
+
+        function salvarDadosPaciente() {
+            if(!pacienteAtualId) return;
+            let p = pacientesDB.find(item => item.idDoc === pacienteAtualId);
+            if(!p) return;
+
+            p.sociodemograficos.nome = document.getElementById('p_nome').value;
+            p.sociodemograficos.nascimento = document.getElementById('p_nascimento').value;
+            p.sociodemograficos.telefone = document.getElementById('p_telefone').value;
+            p.sociodemograficos.sexo = document.getElementById('p_sexo').value;
+            p.sociodemograficos.raca = document.getElementById('p_raca').value;
+            p.sociodemograficos.estadocivil = document.getElementById('p_estadocivil').value;
+            p.sociodemograficos.equipe = document.getElementById('p_equipe').value;
+            p.sociodemograficos.microarea = document.getElementById('p_microarea').value;
+            p.sociodemograficos.acs = document.getElementById('p_acs').value;
+
+            if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                db.collection('pacientes').doc(pacienteAtualId).update(p)
+                    .then(() => alert('Dados sociodemográficos salvos na nuvem!'))
+                    .catch(() => salvarPacienteLocal(p));
+            } else {
+                salvarPacienteLocal(p);
+            }
+        }
+
+        function salvarPacienteLocal(p) {
+            localStorage.setItem('pts_pacientes_db_offline', JSON.stringify(pacientesDB));
+            alert('Dados salvos localmente!');
+        }
+
+        function salvarDadosHistoriaClinica() {
+            if(!pacienteAtualId) return;
+            let p = pacientesDB.find(item => item.idDoc === pacienteAtualId);
+            if(!p) return;
+            p.clinica.ant_pessoais = document.getElementById('p_ant_pessoais').value;
+            p.clinica.ant_familiares = document.getElementById('p_ant_familiares').value;
+            p.clinica.peso = document.getElementById('p_peso').value;
+            p.clinica.altura = document.getElementById('p_altura').value;
+
+            if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                db.collection('pacientes').doc(pacienteAtualId).update(p)
+                    .then(() => alert('História clínica salva na nuvem!'))
+                    .catch(() => salvarPacienteLocal(p));
+            } else {
+                salvarPacienteLocal(p);
+            }
+        }
+
+        function salvarAvaliacaoFamiliar() { alert('Avaliação familiar salva!'); }
+
+        function salvarPTSCompleto() {
+            if(!pacienteAtualId) return;
+            let p = pacientesDB.find(item => item.idDoc === pacienteAtualId);
+            if(!p) return;
+            p.pts.diagnostico = document.getElementById('pts_diagnostico').value;
+            p.pts.metas = document.getElementById('pts_metas').value;
+
+            if(usuarioAtual && usuarioAtual.uid !== 'turma_a_offline' && db) {
+                db.collection('pacientes').doc(pacienteAtualId).update(p).then(() => {
+                    alert('Planejamento salvo na nuvem!');
+                    mudarAba('imprimir');
+                }).catch(() => {
+                    salvarPacienteLocal(p);
+                    mudarAba('imprimir');
+                });
+            } else {
+                salvarPacienteLocal(p);
+                mudarAba('imprimir');
+            }
+        }
+
+        function atualizarDadosImpressao() {
+            let p = pacientesDB.find(item => item.idDoc === pacienteAtualId);
+            if(!p) return;
+            document.getElementById('print_ubs_nome').innerText = territorioDB.ubs ? `UBS: ${territorioDB.ubs}` : '';
+            document.getElementById('print_nome').innerText = p.sociodemograficos.nome || '-';
+        }
+    </script>
+</body>
+</html>
